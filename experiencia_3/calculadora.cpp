@@ -49,7 +49,7 @@ void calcular() {
 
     resultado = valorA + valorB;
 
-    if (resultado > 15) {
+    if (resultado > 8) {
 
       overflow = true;
       resultado &= 0x0F;
@@ -59,7 +59,7 @@ void calcular() {
 
     resultado = valorA - valorB;
 
-    if (resultado < 0) {
+    if (resultado < -7) {
 
       overflow = true;
       resultado = 0;
