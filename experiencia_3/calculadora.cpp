@@ -6,7 +6,7 @@ const char* senha = "12345678";
 
 WebServer server(80);
 
-const int pinosLeds[] = {18, 19, 21, 22};
+const int pinosLeds[] = {6, 7, 8, 9};
 const int totalLeds = 4;
 
 void adicionarCORS() {
