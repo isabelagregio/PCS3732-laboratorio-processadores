@@ -114,23 +114,16 @@
 
         .quadro-notificacao {
             margin-top: 22px;
-            padding: 12px 16px;
-            border-radius: 6px;
+            padding: 14px 16px;
+            border-radius: 8px;
             display: none;
             font-size: 14px;
-            line-height: 1.5;
+            line-height: 1.6;
             text-align: left;
         }
 
-        .quadro-notificacao .titulo-op {
-            font-size: 12px;
-            text-transform: uppercase;
-            font-weight: bold;
-            letter-spacing: 0.5px;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-            padding-bottom: 4px;
-            margin-bottom: 8px;
-            color: var(--texto-suave);
+        .quadro-notificacao .linha-info {
+            margin-bottom: 4px;
         }
 
         .msg-sucesso {
@@ -192,30 +185,29 @@
 
         fetch(queryTarget)
             .then(res => {
-                if (!res.ok) throw new Error("Falha na comunicação com o barramento do ESP32.");
+                if (!res.ok) throw new Error("Falha na resposta do barramento.");
                 return res.json();
             })
             .then(data => {
                 displayResultado.style.display = "block";
                 
-                if (data.overflow) {
+                // Formata o nome da operação para exibição amigável
+                if (data.overflow === true) {
                     displayResultado.className = "quadro-notificacao msg-erro-overflow";
-                    displayResultado.innerHTML = `<div class="titulo-op">Dados do ESP32 (Hardware)</div>
-                                                  <b>Operação:</b> ${data.operacao}<br>
-                                                  🚨 <b>Estouro de Overflow Detectado no C!</b><br>
-                                                  Saída nos LEDs: ${data.resultado_bin}`;
+                    displayResultado.innerHTML = `
+                        <div class="linha-info"><b>📟 Saída Binária:</b> ${data.resultado_bin}</div>
+                        <div class="linha-info"><b>🚨 Status:</b> Estouro de Overflow Detectado!</div>
+                    `;
                 } else {
                     displayResultado.className = "quadro-notificacao msg-sucesso";
-                    displayResultado.innerHTML = `<div class="titulo-op">Dados do ESP32 (Hardware)</div>
-                                                  <b>Operação:</b> ${data.operacao}<br>
-                                                  ✅ <b>Cálculo Realizado com Sucesso!</b><br>
-                                                  Saída nos LEDs: ${data.resultado_bin}`;
+                    displayResultado.innerHTML = `
+                        <div class="linha-info"><b>⚙️ Operação:</b> ${labelOp}</div>
+                        <div class="linha-info"><b>📟 Saída Binária:</b> ${data.resultado_bin}</div>
+                        <div class="linha-info"><b>✅ Status:</b> Operação Concluída com Sucesso!</div>
+                    `;
                 }
             })
             .catch(err => {
-                displayResultado.className = "quadro-notificacao msg-erro-overflow";
-                displayResultado.innerHTML = "<b>Erro de Conexão:</b> Não foi possível estabelecer comunicação com o Wi-Fi do ESP32.";
-                displayResultado.style.display = "block";
                 console.error(err);
             });
     }
