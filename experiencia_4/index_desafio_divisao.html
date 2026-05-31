@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Controle - Calculadora ESP32</title>
+    <style>
+        :root {
+            --bg-principal: #f8fafc;
+            --cor-card: #ffffff;
+            --primaria: #1e3a8a;
+            --primaria-hover: #1d4ed8;
+            --secundaria: #0284c7;
+            --secundaria-hover: #0369a1;
+            --alerta: #7c3aed;
+            --alerta-hover: #6d28d9;
+            --neutro: #475569;
+            --neutro-hover: #334155;
+            --divisao: #b45309;
+            --divisao-hover: #92400e;
+            --sucesso-bg: #ecfdf5;
+            --sucesso-texto: #065f46;
+            --sucesso-borda: #a7f3d0;
+            --perigo-bg: #fef2f2;
+            --perigo-texto: #991b1b;
+            --perigo-borda: #fecaca;
+            --texto-escuro: #1e293b;
+            --texto-suave: #64748b;
+        }
+
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: var(--bg-principal);
+            color: var(--texto-escuro);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .painel-calculadora {
+            background-color: var(--cor-card);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            width: 440px;
+            box-sizing: border-box;
+        }
+
+        h2 {
+            margin-top: 0;
+            margin-bottom: 8px;
+            font-size: 22px;
+            text-align: center;
+            color: var(--primaria);
+            letter-spacing: -0.5px;
+        }
+
+        .subtitulo {
+            text-align: center;
+            margin: 0 0 25px 0;
+            color: var(--texto-suave);
+            font-size: 13px;
+        }
+
+        .grupo-campo {
+            margin-bottom: 18px;
+        }
+
+        .grupo-campo label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: var(--texto-escuro);
+        }
+
+        .entrada-binaria {
+            width: 100%;
+            padding: 10px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            letter-spacing: 3px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            box-sizing: border-box;
+            background-color: #fafafa;
+            transition: border-color 0.2s;
+        }
+
+        .entrada-binaria:focus {
+            outline: none;
+            border-color: var(--secundaria);
+            background-color: #ffffff;
+        }
+
+        .linha-ajuda {
+            font-size: 12px;
+            color: var(--texto-suave);
+            margin-top: 4px;
+        }
+
+        .bloco-botoes {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .btn-operacao {
+            padding: 12px;
+            font-size: 14px;
+            font-weight: 700;
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        .btn-operacao:active {
+            transform: scale(0.98);
+        }
+
+        .btn-soma { background-color: var(--primaria); }
+        .btn-soma:hover { background-color: var(--primaria-hover); }
+
+        .btn-subtracao { background-color: var(--secundaria); }
+        .btn-subtracao:hover { background-color: var(--secundaria-hover); }
+
+        .btn-multiplicacao { background-color: var(--alerta); }
+        .btn-multiplicacao:hover { background-color: var(--alerta-hover); }
+
+        .btn-fatorial { background-color: var(--neutro); }
+        .btn-fatorial:hover { background-color: var(--neutro-hover); }
+
+        .btn-divisao {
+            background-color: var(--divisao);
+            grid-column: span 2;
+        }
+        .btn-divisao:hover { background-color: var(--divisao-hover); }
+
+        .quadro-notificacao {
+            margin-top: 22px;
+            padding: 14px 16px;
+            border-radius: 8px;
+            display: none;
+            font-size: 14px;
+            line-height: 1.6;
+            text-align: left;
+            word-break: break-word;
+        }
+
+        .quadro-notificacao .linha-info {
+            margin-bottom: 4px;
+        }
+
+        .msg-sucesso {
+            background-color: var(--sucesso-bg);
+            color: var(--sucesso-texto);
+            border: 1px solid var(--sucesso-borda);
+        }
+
+        .msg-erro-overflow {
+            background-color: var(--perigo-bg);
+            color: var(--perigo-texto);
+            border: 1px solid var(--perigo-borda);
+        }
+
+        code {
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+<body>
+
+<div class="painel-calculadora">
+    <h2>Painel da Calculadora</h2>
+    <p class="subtitulo">Operações executadas no ESP32 em C/C++, não no JavaScript.</p>
+
+    <div class="grupo-campo">
+        <label for="campoOperandoA">Operando A em binário (até 16 bits):</label>
+        <input type="text" id="campoOperandoA" maxlength="16" value="00000110" oninput="sanitizarEntrada(this)" placeholder="00000000" class="entrada-binaria">
+        <div class="linha-ajuda">Para fatorial, será usado apenas o operando A.</div>
+    </div>
+
+    <div class="grupo-campo">
+        <label for="campoOperandoB">Operando B em binário (até 16 bits):</label>
+        <input type="text" id="campoOperandoB" maxlength="16" value="00000010" oninput="sanitizarEntrada(this)" placeholder="00000000" class="entrada-binaria">
+        <div class="linha-ajuda">Para divisão, A será o dividendo e B será o divisor.</div>
+    </div>
+
+    <div class="bloco-botoes">
+        <button class="btn-operacao btn-soma" onclick="executarFluxoCalculo('add')">SOMA</button>
+        <button class="btn-operacao btn-subtracao" onclick="executarFluxoCalculo('sub')">SUB</button>
+        <button class="btn-operacao btn-multiplicacao" onclick="executarFluxoCalculo('mul')">MULT</button>
+        <button class="btn-operacao btn-fatorial" onclick="executarFluxoCalculo('fat')">FATORIAL</button>
+        <button class="btn-operacao btn-divisao" onclick="executarFluxoCalculo('div')">DIVISÃO</button>
+    </div>
+
+    <div id="zona-status" class="quadro-notificacao"></div>
+</div>
+
+<script>
+    const ENDERECO_ESP32 = "http://192.168.4.1";
+
+    const nomesOperacoes = {
+        add: "Soma",
+        sub: "Subtração",
+        mul: "Multiplicação",
+        fat: "Fatorial",
+        div: "Divisão"
+    };
+
+    function sanitizarEntrada(elemento) {
+        elemento.value = elemento.value.replace(/[^01]/g, '');
+    }
+
+    function executarFluxoCalculo(operacaoMatematica) {
+        const strA = document.getElementById('campoOperandoA').value.trim();
+        const strB = document.getElementById('campoOperandoB').value.trim();
+        const displayResultado = document.getElementById('zona-status');
+
+        if (strA.length < 1 || strA.length > 16 || !/^[01]+$/.test(strA)) {
+            displayResultado.className = "quadro-notificacao msg-erro-overflow";
+            displayResultado.innerHTML = "<b>Erro de Entrada:</b> O operando A deve conter de 1 a 16 bits binários.";
+            displayResultado.style.display = "block";
+            return;
+        }
+
+        if (operacaoMatematica !== "fat" && (strB.length < 1 || strB.length > 16 || !/^[01]+$/.test(strB))) {
+            displayResultado.className = "quadro-notificacao msg-erro-overflow";
+            displayResultado.innerHTML = "<b>Erro de Entrada:</b> O operando B deve conter de 1 a 16 bits binários.";
+            displayResultado.style.display = "block";
+            return;
+        }
+
+        const queryTarget = `${ENDERECO_ESP32}/calc?a=${strA}&b=${strB}&op=${operacaoMatematica}`;
+
+        fetch(queryTarget)
+            .then(res => {
+                if (!res.ok) throw new Error("Falha na resposta do ESP32.");
+                return res.json();
+            })
+            .then(data => {
+                displayResultado.style.display = "block";
+
+                if (data.erro) {
+                    displayResultado.className = "quadro-notificacao msg-erro-overflow";
+                    displayResultado.innerHTML = `
+                        <div class="linha-info"><b>⚙️ Operação:</b> ${nomesOperacoes[operacaoMatematica]}</div>
+                        <div class="linha-info"><b>🚨 Erro:</b> ${data.erro}</div>
+                    `;
+                    return;
+                }
+
+                const linhasDivisao = data.operacao === "div" ? `
+                    <div class="linha-info"><b>➗ Quociente Decimal:</b> ${data.quociente_dec}</div>
+                    <div class="linha-info"><b>➗ Quociente Binário:</b> <code>${data.quociente_bin}</code></div>
+                    <div class="linha-info"><b>➗ Resto Decimal:</b> ${data.resto_dec}</div>
+                    <div class="linha-info"><b>➗ Resto Binário:</b> <code>${data.resto_bin}</code></div>
+                ` : `
+                    <div class="linha-info"><b>🔢 Resultado Decimal:</b> ${data.resultado_dec}</div>
+                    <div class="linha-info"><b>📟 Resultado Binário:</b> <code>${data.resultado_bin}</code></div>
+                `;
+
+                displayResultado.className = data.overflow ? "quadro-notificacao msg-erro-overflow" : "quadro-notificacao msg-sucesso";
+                displayResultado.innerHTML = `
+                    <div class="linha-info"><b>⚙️ Operação:</b> ${nomesOperacoes[data.operacao] || data.operacao}</div>
+                    ${linhasDivisao}
+                    <div class="linha-info"><b>⏱️ Tempos medidos no ESP32:</b> ${data.tempos_us.join(", ")} µs</div>
+                    <div class="linha-info"><b>📊 Média:</b> ${data.media_us} µs</div>
+                    <div class="linha-info"><b>📊 Desvio padrão:</b> ${data.desvio_padrao_us} µs</div>
+                    <div class="linha-info"><b>💡 LEDs:</b> exibem os 4 bits menos significativos do resultado/quociente.</div>
+                    <div class="linha-info"><b>Status:</b> ${data.overflow ? "Overflow detectado." : "Operação concluída com sucesso."}</div>
+                `;
+            })
+            .catch(err => {
+                console.error(err);
+                displayResultado.className = "quadro-notificacao msg-erro-overflow";
+                displayResultado.innerHTML = "<b>Erro de Comunicação:</b> Não foi possível conectar ao ESP32.";
+                displayResultado.style.display = "block";
+            });
+    }
+</script>
+
+</body>
+</html>
