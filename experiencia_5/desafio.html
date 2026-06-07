@@ -1,0 +1,33 @@
+<!DOCTYPE HTML><html>
+<head>
+  <meta charset="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard ESP32-C3</title>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; margin: 0; padding: 20px; background-color: #f4f4f9; }
+    .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); max-width: 500px; margin: 20px auto; }
+    input[type=range] { width: 100%; margin: 15px 0; }
+    h2 { color: #333; }
+  </style>
+  <script>
+    function updateHardware(endpoint, val, elementId, unit) {
+      document.getElementById(elementId).innerText = val + unit;
+      fetch('/' + endpoint + '?val=' + val).catch(err => console.error(err));
+    }
+  </script>
+</head>
+<body>
+  <h2>Dashboard de Controle de Periféricos</h2>
+  
+  <div class="card">
+    <h3>LED Externo (Intensidade)</h3>
+    <p>Nível: <span id="ledVal">0</span></p>
+    <input type="range" min="0" max="255" value="0" oninput="updateHardware('setLED', this.value, 'ledVal', '')">
+  </div>
+
+  <div class="card">
+    <h3>Servomotor (Posição Angular)</h3>
+    <p>Ângulo: <span id="servoVal">90°</span></p>
+    <input type="range" min="0" max="180" value="90" oninput="updateHardware('setServo', this.value, 'servoVal', '°')">
+  </div>
+</body>
+</html>
