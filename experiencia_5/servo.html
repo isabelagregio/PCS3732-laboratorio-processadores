@@ -1,0 +1,21 @@
+<!DOCTYPE HTML><html>
+<head>
+  <meta charset="viewport" content="width=device-width, initial-scale=1">
+  <title>Controle do Servo</title>
+  <style>
+    body { font-family: Arial; text-align: center; margin-top: 50px; }
+    input[type=range] { width: 80%; max-width: 400px; }
+  </style>
+  <script>
+    function updateServo(val) {
+      document.getElementById('servoVal').innerText = val + '°';
+      fetch('/setServo?val=' + val);
+    }
+  </script>
+</head>
+<body>
+  <h2>Controle de Posição do Servomotor</h2>
+  <p>Ângulo: <span id="servoVal">90°</span></p>
+  <input type="range" min="0" max="180" value="90" oninput="updateServo(this.value)">
+</body>
+</html>
