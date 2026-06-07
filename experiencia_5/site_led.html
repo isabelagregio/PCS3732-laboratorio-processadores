@@ -1,0 +1,21 @@
+<!DOCTYPE HTML><html>
+<head>
+  <meta charset="viewport" content="width=device-width, initial-scale=1">
+  <title>Controle do LED</title>
+  <style>
+    body { font-family: Arial; text-align: center; margin-top: 50px; }
+    input[type=range] { width: 80%; max-width: 400px; }
+  </style>
+  <script>
+    function updateLED(val) {
+      document.getElementById('ledVal').innerText = val;
+      fetch('/setLED?val=' + val); // Requisição assíncrona
+    }
+  </script>
+</head>
+<body>
+  <h2>Controle de Intensidade do LED</h2>
+  <p>Brilho: <span id="ledVal">0</span></p>
+  <input type="range" min="0" max="255" value="0" oninput="updateLED(this.value)">
+</body>
+</html>
