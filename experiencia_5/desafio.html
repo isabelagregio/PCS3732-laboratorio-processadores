@@ -1,33 +1,66 @@
-<!DOCTYPE HTML><html>
+<!DOCTYPE HTML>
+<html>
 <head>
   <meta charset="viewport" content="width=device-width, initial-scale=1">
-  <title>Dashboard ESP32-C3</title>
+  <title>Controle de Atuadores ESP32</title>
   <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; margin: 0; padding: 20px; background-color: #f4f4f9; }
-    .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); max-width: 500px; margin: 20px auto; }
-    input[type=range] { width: 100%; margin: 15px 0; }
-    h2 { color: #333; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      text-align: center;
+      margin-top: 30px;
+      background-color: #f4f4f9;
+      color: #333;
+    }
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .control-group {
+      margin: 30px 0;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+    input[type=range] { width: 90%; max-width: 400px; }
+    h2 { color: #007bff; }
+    span { font-weight: bold; color: #ff5722; }
   </style>
   <script>
-    function updateHardware(endpoint, val, elementId, unit) {
-      document.getElementById(elementId).innerText = val + unit;
-      fetch('/' + endpoint + '?val=' + val).catch(err => console.error(err));
+    // ALTERE PARA O IP QUE APARECE NO MONITOR SERIAL DO SEU ARDUINO
+    const espIP = "http://192.168.4.1";
+
+    function updateLED(val) {
+      document.getElementById('ledVal').innerText = val;
+      fetch(`${espIP}/setLED?val=${val}`)
+        .catch(err => console.error("Erro no LED:", err));
+    }
+
+    function updateServo(val) {
+      document.getElementById('servoVal').innerText = val + "°";
+      fetch(`${espIP}/setServo?graus=${val}`)
+        .catch(err => console.error("Erro no Servo:", err));
     }
   </script>
 </head>
 <body>
-  <h2>Dashboard de Controle de Periféricos</h2>
-  
-  <div class="card">
-    <h3>LED Externo (Intensidade)</h3>
-    <p>Nível: <span id="ledVal">0</span></p>
-    <input type="range" min="0" max="255" value="0" oninput="updateHardware('setLED', this.value, 'ledVal', '')">
-  </div>
+  <div class="container">
+    <h2>Painel de Controle ESP32</h2>
+   
+    <div class="control-group">
+      <h3>Intensidade do LED</h3>
+      <p>Brilho: <span id="ledVal">0</span></p>
+      <input type="range" min="0" max="255" value="0" oninput="updateLED(this.value)">
+    </div>
 
-  <div class="card">
-    <h3>Servomotor (Posição Angular)</h3>
-    <p>Ângulo: <span id="servoVal">90°</span></p>
-    <input type="range" min="0" max="180" value="90" oninput="updateHardware('setServo', this.value, 'servoVal', '°')">
+    <div class="control-group">
+      <h3>Posição do Servo Motor</h3>
+      <p>Ângulo: <span id="servoVal">90°</span></p>
+      <input type="range" min="0" max="180" value="90" oninput="updateServo(this.value)">
+    </div>
   </div>
 </body>
 </html>
