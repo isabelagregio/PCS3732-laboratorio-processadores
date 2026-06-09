@@ -1,21 +1,55 @@
-<!DOCTYPE HTML><html>
+<!DOCTYPE HTML>
+<html>
 <head>
   <meta charset="viewport" content="width=device-width, initial-scale=1">
-  <title>Controle do Servo</title>
+  <title>Controle de Atuadores ESP32</title>
   <style>
-    body { font-family: Arial; text-align: center; margin-top: 50px; }
-    input[type=range] { width: 80%; max-width: 400px; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      text-align: center;
+      margin-top: 30px;
+      background-color: #f4f4f9;
+      color: #333;
+    }
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .control-group {
+      margin: 30px 0;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+    input[type=range] { width: 90%; max-width: 400px; }
+    h2 { color: #007bff; }
+    span { font-weight: bold; color: #ff5722; }
   </style>
   <script>
+    const espIP = "http://192.168.4.1";
+
     function updateServo(val) {
-      document.getElementById('servoVal').innerText = val + '°';
-      fetch('/setServo?val=' + val);
+      document.getElementById('servoVal').innerText = val + "°";
+      fetch(`${espIP}/setServo?graus=${val}`)
+        .catch(err => console.error("Erro no Servo:", err));
     }
   </script>
 </head>
 <body>
-  <h2>Controle de Posição do Servomotor</h2>
-  <p>Ângulo: <span id="servoVal">90°</span></p>
-  <input type="range" min="0" max="180" value="90" oninput="updateServo(this.value)">
+  <div class="container">
+    <h2>Painel de Controle ESP32</h2>
+   
+   
+
+    <div class="control-group">
+      <h3>Posição do Servo Motor</h3>
+      <p>Ângulo: <span id="servoVal">90°</span></p>
+      <input type="range" min="0" max="180" value="90" oninput="updateServo(this.value)">
+    </div>
+  </div>
 </body>
 </html>
