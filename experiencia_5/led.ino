@@ -1,68 +1,32 @@
-#include <WiFi.h>
-#include <WebServer.h>
-
-// Configurações da Rede WiFi (Modo Access Point)
-const char* ssid = "ESP32-CALC";
-const char* senha = "12345678";
-
-WebServer server(80);
-
-// Configuração do Hardware (ESP32-C3)
-const int ledPin = 8; 
-const int pwmFreq = 5000;    // Frequência de 5kHz
-const int pwmResolution = 8; // Resolução de 8 bits (0 a 255)
-
-// Função para habilitar CORS (Permite requisições de outros computadores/sites)
-void adicionarCORS() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  server.sendHeader("Access-Control-Allow-Headers", "*");
-}
-
-// Responde à requisição de pré-verificação (Pre-flight) do navegador
-void responderOptions() {
-  adicionarCORS();
-  server.send(204); // No Content
-}
-
-// Função que processa a alteração do LED
-void ajustarLed() {
-  adicionarCORS();
-
-  if (server.hasArg("val")) {
-    int duty = server.arg("val").toInt();
-    
-    // Proteção para garantir que o valor está no escopo do PWM (0-255)
-    if (duty >= 0 && duty <= 255) {
-      ledcWrite(ledPin, duty);
-      server.send(200, "application/json", "{\"status\":\"OK\",\"brilho\":" + String(duty) + "}");
-      return;
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Controle do LED</title>
+  <style>
+    body { font-family: Arial; text-align: center; margin-top: 50px; }
+    input[type=range] { width: 80%; max-width: 400px; display: block; margin: 10px auto; }
+  </style>
+  <script>
+    function updateLED() {
+      const val = document.getElementById('ledRange').value;
+      const freq = document.getElementById('freqInput').value;
+      
+      document.getElementById('ledVal').innerText = val;
+      
+      // Envia os dois parâmetros na URL
+      fetch(`http://192.168.4.1/setLED?val=${val}&freq=${freq}`);
     }
-  }
+  </script>
+</head>
+<body>
+  <h2>Controle de LED (ESP32)</h2>
   
-  server.send(400, "application/json", "{\"erro\":\"Parametro 'val' invalido ou ausente.\"}");
-}
-
-void setup() {
-  Serial.begin(115200);
-
-  // Configuração do LED usando a API moderna do ESP32 (Versão 3.0+)
-  ledcAttach(ledPin, pwmFreq, pwmResolution);
-  ledcWrite(ledPin, 0); // Inicia apagado
-
-  // Configura o ESP32 como um Roteador (SoftAP)
-  WiFi.softAP(ssid, senha);
-
-  Serial.print("Dispositivo pronto! Conecte no WiFi 'ESP32-CALC' e envie comandos para o IP: ");
-  Serial.println(WiFi.softAPIP());
-
-  // Rotas da API com suporte a GET e OPTIONS (CORS)
-  server.on("/setLED", HTTP_GET, ajustarLed);
-  server.on("/setLED", HTTP_OPTIONS, responderOptions);
-
-  server.begin();
-}
-
-void loop() {
-  server.handleClient();
-}
+  <p>Brilho (Duty Cycle): <span id="ledVal">0</span></p>
+  <input type="range" id="ledRange" min="0" max="255" value="0" oninput="updateLED()">
+  
+  <p>Frequência (Hz):</p>
+  <input type="number" id="freqInput" value="5000" onchange="updateLED()">
+</body>
+</html>
