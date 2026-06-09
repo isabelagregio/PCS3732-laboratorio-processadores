@@ -9,7 +9,7 @@
   <script>
     function updateLED(val) {
       document.getElementById('ledVal').innerText = val;
-      fetch('/setLED?val=' + val); // Requisição assíncrona
+      fetch('http://192.168.4.1/setLED?val=' + val); // Requisição assíncrona
     }
   </script>
 </head>
