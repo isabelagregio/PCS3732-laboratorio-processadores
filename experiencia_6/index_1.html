@@ -1,1 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Monitoramento Inteligente</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f7f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+            width: 350px;
+        }
+        h2 { color: #333; margin-bottom: 20px; }
+        .value-box {
+            font-size: 48px;
+            font-weight: bold;
+            color: #007bff;
+            margin: 20px 0;
+        }
+        .status {
+            font-size: 14px;
+            color: #666;
+            padding: 8px;
+            border-radius: 20px;
+            background: #eee;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
 
+<div class="card">
+    <h2>Telemetria LDR</h2>
+    <div class="status">Frequência de Atualização: >= 1Hz</div>
+    <div class="value-box" id="ldr-value">---</div>
+    <div class="status" id="ldr-status">Conectando ao ESP32...</div>
+</div>
+
+<script>
+    // SUBSTITUA PELO IP EXIBIDO NO MONITOR SERIAL DO SEU ESP32
+    const ESP32_IP = "192.168.4.1"; 
+
+    async function fetchLDR() {
+        try {
+            const response = await fetch(`http://${ESP32_IP}/api/ldr`);
+            if (!response.ok) throw new Error("Erro na requisição");
+            
+            const data = await response.json();
+            
+            // Atualiza o valor bruto do ADC (0 a 4095)
+            document.getElementById('ldr-value').innerText = data.value;
+            
+            // Lógica visual baseada no limiar de baixa luminosidade
+            if (data.value < 1500) {
+                document.getElementById('ldr-status').innerText = "Modo: Baixa Luminosidade (Noturno)";
+                document.getElementById('ldr-status').style.background = "#fff3cd";
+                document.getElementById('ldr-status').style.color = "#856404";
+            } else {
+                document.getElementById('ldr-status').innerText = "Modo: Luminosidade Normal";
+                document.getElementById('ldr-status').style.background = "#d4edda";
+                document.getElementById('ldr-status').style.color = "#155724";
+            }
+        } catch (error) {
+            document.getElementById('ldr-value').innerText = "---";
+            document.getElementById('ldr-status').innerText = "Erro de conexão com o ESP32";
+            document.getElementById('ldr-status').style.background = "#f8d7da";
+            document.getElementById('ldr-status').style.color = "#721c24";
+        }
+    }
+
+    // Executa a leitura periódica simulando a taxa mínima exigida de 1Hz
+    setInterval(fetchLDR, 1000);
+    window.onload = fetchLDR;
+</script>
+
+</body>
+</html>
