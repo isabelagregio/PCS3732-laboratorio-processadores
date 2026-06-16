@@ -1,95 +1,128 @@
 #include <WiFi.h>
 #include <WebServer.h>
 
-// Definição dos Pinos
-const int PIN_LDR = 34;
-const int PIN_BUTTON_SOS = 12;   // Pino do Botão SOS com resistor pull-up
-const int PIN_LED_YELLOW = 2;    // LED de telemetria normal (Pisca em baixa luz)
-const int PIN_LED_RED = 4;       // LED de Emergência SOS
+// Definição dos pinos conforme o segundo código
+#define LDR_PIN 2
+#define BUTTON_PIN 9
+#define NEOPIXEL_PIN 8
 
-// Variáveis para Controle de Interrupção e Debounce
-volatile bool sosRequestActive = false;
-volatile unsigned long lastInterruptTime = 0;
-const unsigned long DEBOUNCE_WINDOW = 50; // Janela de 50ms para ignorar ruído focado na física do botão
+// Variáveis de controle
+int ldrValue = 0;
 
-// Máquina de Estados do LED
-enum EstadoSistema { NORMAL, BAIXA_LUZ, EMERGENCIA_SOS };
+enum EstadoSistema { NORMAL, BAIXA_LUMINOSIDADE, EMERGENCIA_SOS };
 EstadoSistema estadoAtual = NORMAL;
 
-unsigned long sosStartTime = 0;
-unsigned long previousMillisBlink = 0;
-bool ledYellowState = LOW;
+// Controle da leitura do LDR
+unsigned long lastLDRReadTime = 0;
+const unsigned long ldrInterval = 1000;
 
-// Rotina de Serviço de Interrupção (ISR) - Armazenada na RAM para máxima velocidade
-void IRAM_ATTR srvBotaoSOS() {
-    unsigned long interruptTime = millis();
-    // Verifica se a variação rápida ocorreu fora da janela de debounce
-    if (interruptTime - lastInterruptTime > DEBOUNCE_WINDOW) {
-        sosRequestActive = true;
-        lastInterruptTime = interruptTime;
-    }
+// Controle do piscar amarelo
+unsigned long lastBlinkTime = 0;
+bool yellowLedState = false;
+
+// Controle da interrupção SOS e debounce
+volatile bool sosRequested = false;
+volatile unsigned long lastDebounceTime = 0;
+const unsigned long debounceDelay = 50;
+
+// Servidor Web
+WebServer server(80);
+
+// Rotina de interrupção do botão SOS
+void IRAM_ATTR handleSOSInterrupt() {
+  if ((millis() - lastDebounceTime) > debounceDelay) {
+    sosRequested = true;
+    lastDebounceTime = millis();
+  }
+}
+
+// Rota /data para enviar os dados em JSON
+void handleData() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+
+  String stateStr = (estadoAtual == NORMAL) ? "Luminosidade Normal" :
+                    (estadoAtual == BAIXA_LUMINOSIDADE) ? "Baixa Luminosidade" :
+                    "EMERGÊNCIA (SOS)";
+
+  String json = "{\"ldr\":" + String(ldrValue) + ",\"state\":\"" + stateStr + "\"}";
+
+  server.send(200, "application/json", json);
 }
 
 void setup() {
-    Serial.begin(115200);
-    pinMode(PIN_LDR, INPUT);
-    pinMode(PIN_LED_YELLOW, OUTPUT);
-    pinMode(PIN_LED_RED, OUTPUT);
-    
-    // Configura o pino com INPUT_PULLUP interno para evitar flutuação elétrica
-    pinMode(PIN_BUTTON_SOS, INPUT_PULLUP);
-    
-    // Vincula a interrupção de hardware ao pino do botão SOS
-    attachInterrupt(digitalPinToInterrupt(PIN_BUTTON_SOS), srvBotaoSOS, FALLING);
-    
-    Serial.println("Sistema Pronto. Aguardando interrupções do Botão SOS...");
+  Serial.begin(115200);
+
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(LDR_PIN, INPUT);
+
+  // Inicializa o NeoPixel em verde por 3 segundos
+  neopixelWrite(NEOPIXEL_PIN, 0, 128, 0);
+  delay(3000);
+  neopixelWrite(NEOPIXEL_PIN, 0, 0, 0);
+
+  // Cria a rede Wi-Fi do ESP32
+  WiFi.softAP("ta_funcionando");
+
+  // Configura rota do servidor
+  server.on("/data", handleData);
+  server.begin();
+
+  // Configura interrupção do botão SOS
+  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), handleSOSInterrupt, FALLING);
+
+  Serial.println("Sistema pronto. Acesse /data para ver os dados.");
 }
 
 void loop() {
-    unsigned long currentMillis = millis();
-    int ldrValue = analogRead(PIN_LDR);
+  server.handleClient();
 
-    // VERIFICAÇÃO DE PRIORIDADE MÁXIMA: Interrupção solicitou SOS?
-    if (sosRequestActive) {
-        // Força a troca de contexto lógica imediata salvando o estado atual
-        sosRequestActive = false; 
-        estadoAtual = EMERGENCIA_SOS;
-        sosStartTime = currentMillis;
-        
-        Serial.println("[ALERTA INTERRUPÇÃO] Botão SOS Pressionado! Prioridade Máxima Ativada.");
-        
-        // Comportamento imediato das saídas de hardware
-        digitalWrite(PIN_LED_YELLOW, LOW); // Interrompe o amarelo piscante instantaneamente
-        digitalWrite(PIN_LED_RED, HIGH);   // Acende o vermelho fixo
+  unsigned long currentMillis = millis();
+
+  // Verifica se houve solicitação de SOS por interrupção
+  if (sosRequested) {
+    sosRequested = false;
+
+    estadoAtual = EMERGENCIA_SOS;
+
+    // Cor vermelha no NeoPixel
+    neopixelWrite(NEOPIXEL_PIN, 255, 0, 0);
+
+    delay(3000);
+
+    // Apaga o NeoPixel
+    neopixelWrite(NEOPIXEL_PIN, 0, 0, 0);
+
+    estadoAtual = NORMAL;
+  }
+
+  // Faz leitura do LDR a cada 1 segundo
+  if (currentMillis - lastLDRReadTime >= ldrInterval) {
+    lastLDRReadTime = currentMillis;
+
+    ldrValue = analogRead(LDR_PIN);
+
+    // Mesma lógica do segundo código:
+    // valor acima de 2500 indica baixa luminosidade
+    estadoAtual = (ldrValue > 2500) ? BAIXA_LUMINOSIDADE : NORMAL;
+  }
+
+  // Se estiver em baixa luminosidade, pisca amarelo a cada 2 segundos
+  if (estadoAtual == BAIXA_LUMINOSIDADE) {
+    if (currentMillis - lastBlinkTime >= 2000) {
+      lastBlinkTime = currentMillis;
+
+      yellowLedState = !yellowLedState;
+
+      if (yellowLedState) {
+        // Amarelo: vermelho + verde
+        neopixelWrite(NEOPIXEL_PIN, 255, 255, 0);
+      } else {
+        neopixelWrite(NEOPIXEL_PIN, 0, 0, 0);
+      }
     }
-
-    // Gerenciador da Máquina de Estados
-    switch (estadoAtual) {
-        
-        case EMERGENCIA_SOS:
-            // Mantém o estado vermelho fixo por exatamente 3 segundos (3000ms)
-            if (currentMillis - sosStartTime >= 3000) {
-                digitalWrite(PIN_LED_RED, LOW);
-                estadoAtual = NORMAL; // Retorna para o fluxo padrão de execução
-                Serial.println("[SISTEMA] Emergência finalizada. Retomando loop principal.");
-            }
-            break;
-
-        case NORMAL:
-        case BAIXA_LUZ:
-            // Se não estiver em emergência, executa a rotina padrão do LDR de fundo
-            if (ldrValue < 1500) {
-                estadoAtual = BAIXA_LUZ;
-                // Executa o piscar de 2 segundos de forma assíncrona
-                if (currentMillis - previousMillisBlink >= 2000) {
-                    previousMillisBlink = currentMillis;
-                    ledYellowState = !ledYellowState;
-                    digitalWrite(PIN_LED_YELLOW, ledYellowState);
-                }
-            } else {
-                estadoAtual = NORMAL;
-                digitalWrite(PIN_LED_YELLOW, LOW);
-            }
-            break;
-    }
+  } 
+  else if (estadoAtual == NORMAL) {
+    // Garante que o NeoPixel fique apagado no estado normal
+    neopixelWrite(NEOPIXEL_PIN, 0, 0, 0);
+  }
 }
