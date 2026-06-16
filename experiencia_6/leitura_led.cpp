@@ -1,17 +1,17 @@
 #include <WiFi.h>
 #include <WebServer.h>
 
-// Configurações da Rede Wi-Fi
+// Configurações da Rede Wi-Fi que o ESP32 vai CRIAR
 const char* ssid = "ESP32-CALC";
 const char* password = "12345678";
 
 WebServer server(80);
 
-// Definição de Pinos
-const int PIN_LDR = 34;          // Pino Analógico conectado ao LDR (ADC1_CH6)
-const int PIN_LED_YELLOW = 2;    // Representando o LED nativo/externo para piscar Amarelo
+// Definição de Pinos SEGUROS (Evite pinos entre 6 e 11 pois travam a memória Flash do ESP32)
+const int PIN_LDR = 0;          // Pino Analógico seguro (ADC1_CH6)
+const int PIN_LED_YELLOW = 7;    // Pino de LED seguro (LED Built-in na maioria das placas)
 
-// Limiar de baixa luminosidade (ajustável conforme seu ambiente)
+// Limiar de baixa luminosidade
 const int LIMIAR_NOTURNO = 1500; 
 
 // Controle de tempo para o LED (Blink sem delay)
@@ -37,16 +37,18 @@ void setup() {
     // Configuração explícita da resolução do ADC para 12 bits
     analogSetAttenuation(ADC_11db); 
     
-    // Conexão Wi-Fi
-    WiFi.begin(ssid, password);
-    Serial.print("Conectando ao Wi-Fi");
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-    }
-    Serial.println("\nConectado com sucesso!");
-    Serial.print("Endereço IP do ESP32: ");
-    Serial.println(WiFi.localIP());
+    // Configuração do Wi-Fi no modo ACCESS POINT (O ESP32 gera o sinal)
+    Serial.print("Criando a rede Wi-Fi: ");
+    Serial.println(ssid);
+    
+    // Inicializa o ponto de acesso
+    WiFi.softAP(ssid, password);
+
+    Serial.println("\nRede Wi-Fi criada com sucesso!");
+    Serial.print("Conecte seu computador na rede: ");
+    Serial.println(ssid);
+    Serial.print("Endereço IP do ESP32 para colocar no navegador: ");
+    Serial.println(WiFi.softAPIP()); // Por padrão, geralmente será 192.168.4.1
 
     // Rotas da API
     server.on("/api/ldr", HTTP_GET, handleLDR);
