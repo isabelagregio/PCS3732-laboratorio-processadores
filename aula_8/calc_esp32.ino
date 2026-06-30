@@ -1,32 +1,4 @@
-#include <Wire.h>
-#include <Keypad.h>
-#include <LiquidCrystal_I2C.h>
-
-#define LCD_ADDR 0x27
-#define LCD_COLS 16
-#define LCD_ROWS 2
-
-LiquidCrystal_I2C lcd(LCD_ADDR, LCD_COLS, LCD_ROWS);
-
-const byte ROWS = 4;
-const byte COLS = 4;
-
-char keys[ROWS][COLS] = {
-  {'1', '2', '3', '+'},
-  {'4', '5', '6', '-'},
-  {'7', '8', '9', '*'},
-  {'C', '0', '!', '/'}
-};
-
-byte rowPins[ROWS] = {13, 12, 14, 27};
-byte colPins[COLS] = {26, 25, 33, 32};
-
-Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
-
-String inputA = "";
-String inputB = "";
-char operacao = '\0';
-bool esperandoSegundoNumero = false;
+#define MEDIDAS 1000
 
 uint64_t soma(uint64_t a, uint64_t b) {
   return a + b;
@@ -40,10 +12,7 @@ uint64_t multiplicacao(uint64_t a, uint64_t b) {
   uint64_t res = 0;
 
   while (b > 0) {
-    if (b & 1) {
-      res += a;
-    }
-
+    if (b & 1) res += a;
     a <<= 1;
     b >>= 1;
   }
@@ -52,9 +21,7 @@ uint64_t multiplicacao(uint64_t a, uint64_t b) {
 }
 
 int divisao(uint64_t a, uint64_t b, uint64_t *resultado) {
-  if (b == 0) {
-    return -1;
-  }
+  if (b == 0) return -1;
 
   *resultado = a / b;
   return 0;
@@ -70,154 +37,141 @@ uint64_t fatorial(uint64_t n) {
   return res;
 }
 
-void limparCalculadora() {
-  inputA = "";
-  inputB = "";
-  operacao = '\0';
-  esperandoSegundoNumero = false;
+void calculaMediaDesvio(double tempos[], double *media, double *desvio) {
+  *media = 0;
 
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Calc 4 bits");
-  lcd.setCursor(0, 1);
-  lcd.print("Digite A");
-}
-
-void mostrarExpressao() {
-  lcd.clear();
-  lcd.setCursor(0, 0);
-
-  if (inputA.length() > 0) {
-    lcd.print(inputA);
+  for (int i = 0; i < MEDIDAS; i++) {
+    *media += tempos[i];
   }
 
-  if (operacao != '\0') {
-    lcd.print(" ");
-    lcd.print(operacao);
-    lcd.print(" ");
+  *media /= MEDIDAS;
+
+  double var = 0;
+
+  for (int i = 0; i < MEDIDAS; i++) {
+    double d = tempos[i] - *media;
+    var += d * d;
   }
 
-  if (inputB.length() > 0) {
-    lcd.print(inputB);
+  *desvio = sqrt(var / (MEDIDAS - 1));
+}
+
+void benchmarkOperacao(const char *nome, uint64_t (*op2)(uint64_t, uint64_t),
+                       uint64_t a, uint64_t b) {
+  double tempos[MEDIDAS];
+  volatile uint64_t r = 0;
+
+  for (int i = 0; i < MEDIDAS; i++) {
+    uint64_t ini = micros();
+    r = op2(a, b);
+    uint64_t fim = micros();
+    tempos[i] = fim - ini;
   }
+
+  double media, desvio;
+  calculaMediaDesvio(tempos, &media, &desvio);
+
+  Serial.print(nome);
+  Serial.print(": media = ");
+  Serial.print(media, 4);
+  Serial.print(" us | desvio = ");
+  Serial.print(desvio, 4);
+  Serial.print(" us | resultado = ");
+  Serial.println((unsigned long long)r);
 }
 
-void mostrarErro(const char *msg) {
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("ERRO:");
-  lcd.setCursor(0, 1);
-  lcd.print(msg);
-  delay(2000);
-  limparCalculadora();
-}
+void benchmarkDivisao(uint64_t a, uint64_t b) {
+  double tempos[MEDIDAS];
+  volatile uint64_t r = 0;
 
-void calcularResultado() {
-  if (inputA.length() == 0 || operacao == '\0') {
-    mostrarErro("Entrada invalida");
+  if (b == 0) {
+    Serial.println("Divisao: erro, divisor zero");
     return;
   }
 
-  uint64_t a = inputA.toInt();
-  uint64_t b = inputB.toInt();
-  uint64_t resultado = 0;
-
-  if (a > 15 || b > 15) {
-    mostrarErro("Fora de 4 bits");
-    return;
+  for (int i = 0; i < MEDIDAS; i++) {
+    uint64_t ini = micros();
+    divisao(a, b, (uint64_t *)&r);
+    uint64_t fim = micros();
+    tempos[i] = fim - ini;
   }
 
-  switch (operacao) {
-    case '+':
-      resultado = soma(a, b);
-      break;
+  double media, desvio;
+  calculaMediaDesvio(tempos, &media, &desvio);
 
-    case '-':
-      resultado = subtracao(a, b);
-      break;
+  Serial.print("Divisao: media = ");
+  Serial.print(media, 4);
+  Serial.print(" us | desvio = ");
+  Serial.print(desvio, 4);
+  Serial.print(" us | resultado = ");
+  Serial.println((unsigned long long)r);
+}
 
-    case '*':
-      resultado = multiplicacao(a, b);
-      break;
+void benchmarkFatorial(uint64_t n) {
+  double tempos[MEDIDAS];
+  volatile uint64_t r = 0;
 
-    case '/':
-      if (divisao(a, b, &resultado) == -1) {
-        mostrarErro("Div por zero");
-        return;
-      }
-      break;
-
-    case '!':
-      resultado = fatorial(a);
-      break;
-
-    default:
-      mostrarErro("Op invalida");
-      return;
+  for (int i = 0; i < MEDIDAS; i++) {
+    uint64_t ini = micros();
+    r = fatorial(n);
+    uint64_t fim = micros();
+    tempos[i] = fim - ini;
   }
 
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Resultado:");
-  lcd.setCursor(0, 1);
-  lcd.print((unsigned long long)resultado);
+  double media, desvio;
+  calculaMediaDesvio(tempos, &media, &desvio);
 
-  delay(4000);
-  limparCalculadora();
+  Serial.print("Fatorial: media = ");
+  Serial.print(media, 4);
+  Serial.print(" us | desvio = ");
+  Serial.print(desvio, 4);
+  Serial.print(" us | resultado = ");
+  Serial.println((unsigned long long)r);
 }
 
 void setup() {
-  Wire.begin(21, 22);
+  Serial.begin(115200);
+  delay(2000);
 
-  lcd.init();
-  lcd.backlight();
+  Serial.println("=== Benchmark ESP32 RISC-V ===");
 
-  limparCalculadora();
+  int bits[] = {4, 8, 16, 32, 64};
+
+  for (int i = 0; i < 5; i++) {
+    int n = bits[i];
+
+    uint64_t max;
+    if (n == 64) {
+      max = UINT64_MAX;
+    } else {
+      max = ((uint64_t)1 << n) - 1;
+    }
+
+    uint64_t x = max / 3;
+    uint64_t y = max / 5;
+    if (y == 0) y = 1;
+
+    Serial.println();
+    Serial.print("--- ");
+    Serial.print(n);
+    Serial.println(" bits ---");
+
+    benchmarkOperacao("Soma", soma, x, y);
+    benchmarkOperacao("Subtracao", subtracao, x, y);
+    benchmarkOperacao("Multiplicacao", multiplicacao, x, y);
+    benchmarkDivisao(x, y);
+
+    uint64_t fat_n = (n <= 8) ? 10 : 20;
+    benchmarkFatorial(fat_n);
+  }
+
+  Serial.println();
+  Serial.println("Teste de divisao por zero:");
+  uint64_t r;
+  if (divisao(10, 0, &r) == -1) {
+    Serial.println("ERRO: divisao por zero. Operacao cancelada.");
+  }
 }
 
 void loop() {
-  char tecla = keypad.getKey();
-
-  if (!tecla) {
-    return;
-  }
-
-  if (tecla == 'C') {
-    limparCalculadora();
-    return;
-  }
-
-  if (tecla >= '0' && tecla <= '9') {
-    if (!esperandoSegundoNumero) {
-      inputA += tecla;
-    } else {
-      inputB += tecla;
-    }
-
-    mostrarExpressao();
-    return;
-  }
-
-  if (tecla == '+' || tecla == '-' || tecla == '*' || tecla == '/') {
-    if (inputA.length() == 0) {
-      mostrarErro("Digite A");
-      return;
-    }
-
-    operacao = tecla;
-    esperandoSegundoNumero = true;
-    mostrarExpressao();
-    return;
-  }
-
-  if (tecla == '!') {
-    if (inputA.length() == 0) {
-      mostrarErro("Digite A");
-      return;
-    }
-
-    operacao = '!';
-    calcularResultado();
-    return;
-  }
 }
