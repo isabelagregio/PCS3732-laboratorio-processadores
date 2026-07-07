@@ -8,6 +8,7 @@
  * - Ciclo nominal de 1000 ms, equivalente a 60 BPM
  * - Correção de drift com clock monotônico e temporização absoluta
  * - Servo com PWM de 50 Hz e pulso entre 1 ms e 2 ms
+ * - Servo alternando entre 0° e 180°
  * - LED com rampa luminosa usando PWM
  * - Buzzer com beep curto a cada batida
  *
@@ -65,11 +66,9 @@
  * 0 -> 100 -> 0.
  *
  * Com passo 5 e delay 5 ms:
- * subida: 21 passos * 5 ms = ~105 ms
- * descida: 21 passos * 5 ms = ~105 ms
+ * subida: ~105 ms
+ * descida: ~105 ms
  * total: ~210 ms
- *
- * Esse tempo fica dentro do ciclo de 1000 ms.
  */
 #define LED_RAMP_STEP       5
 #define LED_RAMP_DELAY_MS   5
@@ -82,26 +81,20 @@
  * Servo com PWM de 50 Hz:
  * período = 20 ms.
  *
- * No softPwm:
+ * softPwmCreate(pin, 0, 200)
  * range = 200
  * unidade aproximada = 0,1 ms
  *
- * Resultado esperado do guia:
- * movimento mecânico suave com pulso entre 1 ms e 2 ms.
- *
- * 1 ms -> valor 10
- * 2 ms -> valor 20
+ * Especificação:
+ * 1,0 ms -> valor 10 -> 0°
+ * 1,5 ms -> valor 15 -> 90°
+ * 2,0 ms -> valor 20 -> 180°
  */
-#define SERVO_PWM_RANGE 200
-#define SERVO_MIN       10   // 1,0 ms
-#define SERVO_MAX       20   // 2,0 ms
+#define SERVO_PWM_RANGE   200
 
-/*
- * Ângulos escolhidos para o metrônomo.
- * Evitam extremos mecânicos e usam a região central do servo.
- */
-#define SERVO_LEFT_ANGLE   45
-#define SERVO_RIGHT_ANGLE  135
+#define SERVO_LEFT_PULSE  10   // 1,0 ms -> 0°
+#define SERVO_MID_PULSE   15   // 1,5 ms -> 90°
+#define SERVO_RIGHT_PULSE 20   // 2,0 ms -> 180°
 
 /* ==========================
    PARÂMETROS DO BUZZER
@@ -110,7 +103,7 @@
 #define BEEP_MS 80
 
 /* ==========================
-   VARIÁVEIS GLOBAIS
+   VARIÁVEL GLOBAL
    ========================== */
 
 volatile sig_atomic_t running = 1;
@@ -119,25 +112,16 @@ volatile sig_atomic_t running = 1;
    FUNÇÕES AUXILIARES
    ========================== */
 
-long map_value(long value, long fromLow, long fromHigh, long toLow, long toHigh) {
-    return (toHigh - toLow) * (value - fromLow) / (fromHigh - fromLow) + toLow;
-}
-
-int angle_to_servo_pwm(int angle) {
-    if (angle < 0) {
-        angle = 0;
+void servo_write_pulse(int pulse) {
+    if (pulse < SERVO_LEFT_PULSE) {
+        pulse = SERVO_LEFT_PULSE;
     }
 
-    if (angle > 180) {
-        angle = 180;
+    if (pulse > SERVO_RIGHT_PULSE) {
+        pulse = SERVO_RIGHT_PULSE;
     }
 
-    return (int) map_value(angle, 0, 180, SERVO_MIN, SERVO_MAX);
-}
-
-void servo_write_angle(int angle) {
-    int pwm_value = angle_to_servo_pwm(angle);
-    softPwmWrite(SERVO_PIN, pwm_value);
+    softPwmWrite(SERVO_PIN, pulse);
 }
 
 void led_ramp(void) {
@@ -214,7 +198,12 @@ void cleanup(int sig) {
 
 int main(void) {
     int beat_count = 0;
-    int servo_angle = SERVO_LEFT_ANGLE;
+
+    /*
+     * O metrônomo começa no pulso de 1,0 ms,
+     * correspondente a 0°.
+     */
+    int servo_pulse = SERVO_LEFT_PULSE;
 
     struct timespec next_beat_time;
     struct timespec previous_beat_time;
@@ -224,7 +213,7 @@ int main(void) {
     printf(" Metrônomo integrado: LED + Servo + Buzzer\n");
     printf(" BPM fixo: %d\n", BPM);
     printf(" Periodo nominal: %d ms\n", PERIOD_MS);
-    printf(" Servo: pulso entre 1 ms e 2 ms\n");
+    printf(" Servo: 1,0 ms -> 0 graus | 2,0 ms -> 180 graus\n");
     printf(" LED: rampa luminosa PWM\n");
     printf(" Temporizacao: CLOCK_MONOTONIC + TIMER_ABSTIME\n");
     printf("=================================================\n");
@@ -260,9 +249,9 @@ int main(void) {
     digitalWrite(BUZZER_PIN, LOW);
 
     /*
-     * Posição inicial segura do servo.
+     * Posição inicial segura do servo: 90°.
      */
-    servo_write_angle(90);
+    servo_write_pulse(SERVO_MID_PULSE);
     delay(1000);
 
     /*
@@ -277,7 +266,7 @@ int main(void) {
 
         /*
          * Espera até o instante absoluto programado.
-         * Isso evita que pequenos atrasos acumulem drift.
+         * Isso reduz o acúmulo de drift.
          */
         sleep_until(next_beat_time);
 
@@ -296,17 +285,18 @@ int main(void) {
 
         /*
          * Agenda a próxima batida antes de executar os atuadores.
-         * Isso mantém o ciclo preso ao relógio absoluto.
          */
         add_ms_to_timespec(&next_beat_time, PERIOD_MS);
 
         /*
-         * Alterna o lado do servo em cada batida.
+         * Alterna o servo diretamente entre:
+         * 10 -> 1,0 ms -> 0°
+         * 20 -> 2,0 ms -> 180°
          */
-        if (servo_angle == SERVO_LEFT_ANGLE) {
-            servo_angle = SERVO_RIGHT_ANGLE;
+        if (servo_pulse == SERVO_LEFT_PULSE) {
+            servo_pulse = SERVO_RIGHT_PULSE;
         } else {
-            servo_angle = SERVO_LEFT_ANGLE;
+            servo_pulse = SERVO_LEFT_PULSE;
         }
 
         /*
@@ -315,10 +305,8 @@ int main(void) {
          * - inicia beep
          * - faz rampa luminosa do LED
          * - desliga beep após BEEP_MS
-         *
-         * O beep é desligado antes da rampa terminar.
          */
-        servo_write_angle(servo_angle);
+        servo_write_pulse(servo_pulse);
 
         buzzer_beep_start();
         delay(BEEP_MS);
@@ -329,28 +317,31 @@ int main(void) {
         beat_count++;
 
         if (beat_count == 1) {
-            printf("Batida %d | BPM: %d | Servo: %d graus | primeira amostra\n",
+            printf("Batida %d | BPM: %d | Servo pulse: %d | primeira amostra\n",
                    beat_count,
                    BPM,
-                   servo_angle);
+                   servo_pulse);
         } else {
-            printf("Batida %d | intervalo: %ld ms | jitter: %+ld ms | Servo: %d graus\n",
+            printf("Batida %d | intervalo: %ld ms | jitter: %+ld ms | Servo pulse: %d\n",
                    beat_count,
                    interval_ms,
                    jitter_ms,
-                   servo_angle);
+                   servo_pulse);
         }
 
         /*
-         * Se por algum motivo o ciclo atrasar demais, evita acumular erro indefinidamente.
-         * Em uso normal, essa condição não deve ocorrer.
+         * Se o ciclo atrasar além do próximo período,
+         * reajusta a agenda para evitar acúmulo de erro.
          */
         struct timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
 
         if ((now.tv_sec > next_beat_time.tv_sec) ||
-            (now.tv_sec == next_beat_time.tv_sec && now.tv_nsec > next_beat_time.tv_nsec)) {
+            (now.tv_sec == next_beat_time.tv_sec &&
+             now.tv_nsec > next_beat_time.tv_nsec)) {
+
             printf("[AVISO] O ciclo atrasou além do próximo período. Reajustando agenda.\n");
+
             next_beat_time = now;
             add_ms_to_timespec(&next_beat_time, PERIOD_MS);
         }
