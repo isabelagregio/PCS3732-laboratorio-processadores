@@ -19,7 +19,7 @@
  *      GND    -> GND
  *
  * - Buzzer ativo:
- *      Terminal + -> GPIO23
+ *      Terminal + -> GPIO12
  *      Terminal - -> GND
  *
  * - Botões:
@@ -53,7 +53,7 @@
 
 #define LED_PIN       17   // GPIO17, pino físico 11
 #define SERVO_PIN     18   // GPIO18, pino físico 12
-#define BUZZER_PIN    23   // GPIO23, pino físico 16
+#define BUZZER_PIN    12   // GPIO12, pino físico 16
 
 #define BTN_UP_PIN    21   // aumenta BPM
 #define BTN_DOWN_PIN  20   // diminui BPM
