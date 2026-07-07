@@ -1,58 +1,97 @@
 /**********************************************************************
 * Filename    : Sweep.c
-* Description : Servo sweep
-* Author      : www.freenove.com
-* modification: 2024/07/29
+* Description : Servo sweep using 1ms to 2ms pulse width
+* Author      : Adaptado a partir de www.freenove.com
 **********************************************************************/
+
 #include <wiringPi.h>
 #include <softPwm.h>
 #include <stdio.h>
-#define OFFSET_MS 3     //Define the unit of servo pulse offset: 0.1ms
-#define SERVO_MIN_MS 5+OFFSET_MS        //define the pulse duration for minimum angle of servo
-#define SERVO_MAX_MS 25+OFFSET_MS       //define the pulse duration for maximum angle of servo
 
-#define servoPin    18       //define the GPIO number connected to servo
-long map(long value,long fromLow,long fromHigh,long toLow,long toHigh){
-    return (toHigh-toLow)*(value-fromLow) / (fromHigh-fromLow) + toLow;
+#define servoPin 18
+
+/*
+ * softPwmCreate(pin, 0, 200)
+ * Range 200 => período aproximado de 20 ms => 50 Hz
+ * Cada unidade equivale a aproximadamente 0,1 ms.
+ *
+ * Especificação:
+ * 1,0 ms -> 0 graus   -> valor 10
+ * 1,5 ms -> 90 graus  -> valor 15
+ * 2,0 ms -> 180 graus -> valor 20
+ */
+#define SERVO_MIN_PULSE 10
+#define SERVO_MID_PULSE 15
+#define SERVO_MAX_PULSE 20
+#define SERVO_PWM_RANGE 200
+
+long map_value(long value, long fromLow, long fromHigh, long toLow, long toHigh) {
+    return (toHigh - toLow) * (value - fromLow) / (fromHigh - fromLow) + toLow;
 }
-void servoInit(int pin){        //initialization function for servo PMW pin
-    softPwmCreate(pin,  0, 200);
+
+void servoInit(int pin) {
+    softPwmCreate(pin, 0, SERVO_PWM_RANGE);
 }
-void servoWrite(int pin, int angle){    //Specific a certain rotation angle (0-180) for the servo
-    if(angle > 180)
+
+void servoWrite(int pin, int angle) {
+    int pulse;
+
+    if (angle > 180) {
         angle = 180;
-    if(angle < 0)
+    }
+
+    if (angle < 0) {
         angle = 0;
-    softPwmWrite(pin,map(angle,0,180,SERVO_MIN_MS,SERVO_MAX_MS));   
-}
-void servoWriteMS(int pin, int ms){     //specific the unit for pulse(5-25ms) with specific duration output by servo pin: 0.1ms
-    if(ms > SERVO_MAX_MS)
-        ms = SERVO_MAX_MS;
-    if(ms < SERVO_MIN_MS)
-        ms = SERVO_MIN_MS;
-    softPwmWrite(pin,ms);
+    }
+
+    pulse = map_value(angle, 0, 180, SERVO_MIN_PULSE, SERVO_MAX_PULSE);
+
+    softPwmWrite(pin, pulse);
 }
 
-int main(void)
-{
-    int i;
-    
+void servoWritePulse(int pin, int pulse) {
+    if (pulse > SERVO_MAX_PULSE) {
+        pulse = SERVO_MAX_PULSE;
+    }
+
+    if (pulse < SERVO_MIN_PULSE) {
+        pulse = SERVO_MIN_PULSE;
+    }
+
+    softPwmWrite(pin, pulse);
+}
+
+int main(void) {
+    int angle;
+
     printf("Program is starting ...\n");
-    
-    wiringPiSetupGpio();  //Initialize wiringPi. Use BCM Number. 
-    servoInit(servoPin);  //initialize PMW pin of servo
-    while(1){
-        for(i=SERVO_MIN_MS;i<SERVO_MAX_MS;i++){  //make servo rotate from minimum angle to maximum angle
-            servoWriteMS(servoPin,i);
-            delay(10);
+    printf("Servo PWM: 50 Hz, periodo de 20 ms\n");
+    printf("1.0 ms -> 0 graus | 1.5 ms -> 90 graus | 2.0 ms -> 180 graus\n");
+
+    wiringPiSetupGpio();
+    servoInit(servoPin);
+
+    while (1) {
+        /*
+         * Varredura suave de 0 a 180 graus.
+         */
+        for (angle = 0; angle <= 180; angle += 1) {
+            servoWrite(servoPin, angle);
+            delay(15);
         }
+
         delay(500);
-        for(i=SERVO_MAX_MS;i>SERVO_MIN_MS;i--){  //make servo rotate from maximum angle to minimum angle
-            servoWriteMS(servoPin,i);
-            delay(10);
+
+        /*
+         * Varredura suave de 180 a 0 graus.
+         */
+        for (angle = 180; angle >= 0; angle -= 1) {
+            servoWrite(servoPin, angle);
+            delay(15);
         }
+
         delay(500);
     }
+
     return 0;
 }
-
